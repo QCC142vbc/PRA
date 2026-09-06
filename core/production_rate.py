@@ -31,7 +31,6 @@ def calculate_production_rate(
 
     rate_per_minute = rate_per_second * 60
     rate_per_hour = rate_per_second * 3600
-
     total_output = rate_per_second * measurement_time
 
     return {
@@ -56,17 +55,9 @@ def calculate_actual_production_rate(
     if measurement_time <= 0:
         raise ValueError("measurement_time must be greater than 0")
 
-    actual_rate_per_second = (
-        actual_output / measurement_time
-    )
-
-    actual_rate_per_minute = (
-        actual_rate_per_second * 60
-    )
-
-    actual_rate_per_hour = (
-        actual_rate_per_second * 3600
-    )
+    actual_rate_per_second = actual_output / measurement_time
+    actual_rate_per_minute = actual_rate_per_second * 60
+    actual_rate_per_hour = actual_rate_per_second * 3600
 
     return {
         "actual_rate_per_second": actual_rate_per_second,
@@ -98,10 +89,11 @@ def calculate_efficiency(
         actual_rate / theoretical_rate
     ) * 100
 
+    efficiency = min(efficiency, 100.01)
+
     return {
         "efficiency_percent": efficiency
     }
-
 
 # =========================
 # SAVE MEASUREMENT
@@ -121,13 +113,9 @@ def save_measurement(
         Path(__file__).resolve().parent.parent / "data"
     )
 
-    data_dir.mkdir(
-        exist_ok=True
-    )
+    data_dir.mkdir(exist_ok=True)
 
-    file_path = (
-        data_dir / "measurements.csv"
-    )
+    file_path = data_dir / "measurements.csv"
 
     measurement = {
         "timestamp": datetime.now().isoformat(
@@ -143,7 +131,23 @@ def save_measurement(
         "efficiency": efficiency
     }
 
+    fieldnames = [
+        "timestamp",
+        "machine_count",
+        "cycle_time",
+        "output_per_cycle",
+        "measurement_time",
+        "actual_output",
+        "theoretical_rate",
+        "actual_rate",
+        "efficiency"
+    ]
+
     file_exists = file_path.exists()
+    file_empty = (
+        not file_exists
+        or file_path.stat().st_size == 0
+    )
 
     with open(
         file_path,
@@ -154,12 +158,40 @@ def save_measurement(
 
         writer = csv.DictWriter(
             file,
-            fieldnames=measurement.keys()
+            fieldnames=fieldnames
         )
 
-        if not file_exists:
+        if file_empty:
             writer.writeheader()
 
         writer.writerow(measurement)
 
     return measurement
+
+
+# =========================
+# LOAD MEASUREMENTS
+# =========================
+
+def load_measurements():
+    data_dir = (
+        Path(__file__).resolve().parent.parent / "data"
+    )
+
+    file_path = data_dir / "measurements.csv"
+
+    if not file_path.exists():
+        return []
+
+    with open(
+        file_path,
+        "r",
+        newline="",
+        encoding="utf-8"
+    ) as file:
+
+        reader = csv.DictReader(file)
+
+        measurements = list(reader)
+
+    return measurements
