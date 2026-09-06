@@ -1,3 +1,4 @@
+import csv
 import sys
 from pathlib import Path
 
@@ -12,7 +13,7 @@ import streamlit as st
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 if str(PROJECT_ROOT) not in sys.path:
-    sys.path.append(str(PROJECT_ROOT))
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 
 # =========================
@@ -27,7 +28,8 @@ from core.production_rate import (
     load_measurements,
     calculate_trend,
     detect_bottleneck,
-    forecast_production_rate
+    forecast_production_rate,
+    calculate_analytics
 )
 
 
@@ -442,6 +444,105 @@ else:
 
         st.warning(
             "No valid historical records available."
+        )
+
+
+    # =========================
+    # V0.9 ANALYTICS
+    # =========================
+
+    st.divider()
+
+    st.subheader("Advanced Analytics")
+
+    analytics = calculate_analytics(
+        measurements
+    )
+
+    if analytics["status"] == "ok":
+
+        st.write(
+            "Statistical analysis of historical production performance."
+        )
+
+        st.markdown("### Efficiency Analysis")
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            st.metric(
+                "Average",
+                f"{analytics['average_efficiency']:.2f}%"
+            )
+
+        with col2:
+            st.metric(
+                "Minimum",
+                f"{analytics['minimum_efficiency']:.2f}%"
+            )
+
+        with col3:
+            st.metric(
+                "Maximum",
+                f"{analytics['maximum_efficiency']:.2f}%"
+            )
+
+        with col4:
+            st.metric(
+                "Median",
+                f"{analytics['median_efficiency']:.2f}%"
+            )
+
+
+        st.markdown("### Production Rate Analysis")
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            st.metric(
+                "Average",
+                f"{analytics['average_actual_rate']:.2f} / sec"
+            )
+
+        with col2:
+            st.metric(
+                "Minimum",
+                f"{analytics['minimum_actual_rate']:.2f} / sec"
+            )
+
+        with col3:
+            st.metric(
+                "Maximum",
+                f"{analytics['maximum_actual_rate']:.2f} / sec"
+            )
+
+        with col4:
+            st.metric(
+                "Median",
+                f"{analytics['median_actual_rate']:.2f} / sec"
+            )
+
+
+        st.markdown("### Production Stability")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.metric(
+                "Standard Deviation",
+                f"{analytics['standard_deviation']:.4f}"
+            )
+
+        with col2:
+            st.metric(
+                "Coefficient of Variation",
+                f"{analytics['coefficient_of_variation']:.2f}%"
+            )
+
+    else:
+
+        st.info(
+            "Not enough valid data for advanced analytics."
         )
 
 

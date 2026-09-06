@@ -454,3 +454,100 @@ def forecast_production_rate(measurements):
         "status": "ok",
         "measurement_count": len(actual_rates)
     }
+
+# =========================
+# ADVANCED ANALYTICS
+# =========================
+
+def calculate_analytics(measurements):
+    if not measurements:
+        return {
+            "status": "no_data"
+        }
+
+    efficiencies = []
+    actual_rates = []
+
+    for measurement in measurements:
+        try:
+            efficiency = float(measurement["efficiency"])
+            actual_rate = float(measurement["actual_rate"])
+
+            efficiencies.append(efficiency)
+            actual_rates.append(actual_rate)
+
+        except (
+            KeyError,
+            TypeError,
+            ValueError
+        ):
+            continue
+
+    if not efficiencies or not actual_rates:
+        return {
+            "status": "no_data"
+        }
+
+    sorted_efficiencies = sorted(efficiencies)
+    sorted_rates = sorted(actual_rates)
+
+    def median(values):
+        count = len(values)
+        middle = count // 2
+
+        if count % 2 == 0:
+            return (
+                values[middle - 1]
+                + values[middle]
+            ) / 2
+
+        return values[middle]
+
+    average_efficiency = (
+        sum(efficiencies)
+        / len(efficiencies)
+    )
+
+    average_rate = (
+        sum(actual_rates)
+        / len(actual_rates)
+    )
+
+    variance = sum(
+        (rate - average_rate) ** 2
+        for rate in actual_rates
+    ) / len(actual_rates)
+
+    standard_deviation = variance ** 0.5
+
+    if average_rate == 0:
+        coefficient_of_variation = 0
+    else:
+        coefficient_of_variation = (
+            standard_deviation
+            / average_rate
+        ) * 100
+
+    return {
+        "status": "ok",
+        "measurement_count": len(efficiencies),
+
+        "average_efficiency": average_efficiency,
+        "minimum_efficiency": min(efficiencies),
+        "maximum_efficiency": max(efficiencies),
+        "median_efficiency": median(
+            sorted_efficiencies
+        ),
+
+        "average_actual_rate": average_rate,
+        "minimum_actual_rate": min(actual_rates),
+        "maximum_actual_rate": max(actual_rates),
+        "median_actual_rate": median(
+            sorted_rates
+        ),
+
+        "standard_deviation": standard_deviation,
+        "coefficient_of_variation": (
+            coefficient_of_variation
+        )
+    }

@@ -1,4 +1,23 @@
+
+import sys
+from pathlib import Path
+
 import pytest
+
+
+# =========================
+# PROJECT ROOT
+# =========================
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+
+# =========================
+# CORE IMPORTS
+# =========================
 
 from core.production_rate import (
     calculate_production_rate,
@@ -7,6 +26,7 @@ from core.production_rate import (
     detect_bottleneck,
     calculate_trend,
     forecast_production_rate,
+    calculate_analytics,
 )
 
 
@@ -304,3 +324,56 @@ def test_invalid_theoretical_rate():
             theoretical_rate=0,
             actual_rate=10
         )
+
+
+# =========================
+# ADVANCED ANALYTICS
+# =========================
+
+def test_calculate_analytics():
+
+    measurements = [
+        {
+            "efficiency": "80",
+            "actual_rate": "10"
+        },
+        {
+            "efficiency": "90",
+            "actual_rate": "12"
+        },
+        {
+            "efficiency": "85",
+            "actual_rate": "11"
+        }
+    ]
+
+    result = calculate_analytics(measurements)
+
+    assert result["status"] == "ok"
+    assert result["measurement_count"] == 3
+
+    assert result["average_efficiency"] == pytest.approx(85)
+    assert result["minimum_efficiency"] == 80
+    assert result["maximum_efficiency"] == 90
+    assert result["median_efficiency"] == 85
+
+    assert result["average_actual_rate"] == pytest.approx(11)
+    assert result["minimum_actual_rate"] == 10
+    assert result["maximum_actual_rate"] == 12
+    assert result["median_actual_rate"] == 11
+
+    assert result["standard_deviation"] == pytest.approx(
+        0.8164965809
+    )
+
+    assert result["coefficient_of_variation"] == pytest.approx(
+        7.422695
+    )
+
+
+def test_calculate_analytics_no_data():
+
+    result = calculate_analytics([])
+
+    assert result["status"] == "no_data"
+
