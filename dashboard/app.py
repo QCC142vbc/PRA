@@ -14,7 +14,8 @@ from core.production_rate import (
     save_measurement,
     load_measurements,
     calculate_trend,
-    detect_bottleneck
+    detect_bottleneck,
+    forecast_production_rate
 )
 
 
@@ -312,28 +313,24 @@ else:
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-
         st.metric(
             "Measurements",
             len(measurements)
         )
 
     with col2:
-
         st.metric(
             "Average Efficiency",
             f"{sum(efficiencies) / len(efficiencies):.2f}%"
         )
 
     with col3:
-
         st.metric(
             "Best Efficiency",
             f"{max(efficiencies):.2f}%"
         )
 
     with col4:
-
         st.metric(
             "Worst Efficiency",
             f"{min(efficiencies):.2f}%"
@@ -409,7 +406,6 @@ else:
     col1, col2, col3 = st.columns(3)
 
     with col1:
-
         st.metric(
             "Trend",
             trend["trend"].replace(
@@ -419,25 +415,22 @@ else:
         )
 
     with col2:
-
         st.metric(
             "Efficiency Change",
             f"{trend['change_percent']:+.2f}%"
         )
 
     with col3:
-
         st.metric(
             "Average Actual Rate",
             f"{trend['average_actual_rate']:.2f} / sec"
         )
 
+    st.divider()
 
     # =========================
     # EFFICIENCY CHART
     # =========================
-
-    st.divider()
 
     chart_data = pd.DataFrame({
         "Timestamp": [
@@ -471,3 +464,36 @@ else:
         f"Last efficiency: "
         f"{trend['last_efficiency']:.2f}%"
     )
+
+
+# =========================
+# PRODUCTION FORECAST
+# =========================
+
+st.divider()
+
+st.subheader("Production Forecast")
+
+forecast = forecast_production_rate(measurements)
+
+if forecast["status"] == "no_data":
+
+    st.info(
+        "No data available for forecasting."
+    )
+
+else:
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.metric(
+            "Forecast Production Rate",
+            f"{forecast['forecast_rate']:.2f} / sec"
+        )
+
+    with col2:
+        st.metric(
+            "Based On Measurements",
+            forecast["measurement_count"]
+        )

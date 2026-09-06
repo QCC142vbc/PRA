@@ -272,3 +272,30 @@ def detect_bottleneck(efficiency):
         "status": status,
         "efficiency": efficiency
     }
+
+# =========================
+# PRODUCTION FORECAST
+# =========================
+
+def forecast_production_rate(measurements):
+
+    if not measurements:
+        return {
+            "forecast_rate": 0,
+            "status": "no_data"
+        }
+
+    actual_rates = [
+        float(measurement["actual_rate"])
+        for measurement in measurements
+    ]
+
+    forecast_rate = (
+        sum(actual_rates) / len(actual_rates)
+    )
+
+    return {
+        "forecast_rate": forecast_rate,
+        "status": "ok",
+        "measurement_count": len(actual_rates)
+    }
