@@ -4,6 +4,53 @@ from pathlib import Path
 
 
 # =========================
+# CONFIGURATION
+# =========================
+
+DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+MEASUREMENTS_FILE = DATA_DIR / "measurements.csv"
+
+FIELDNAMES = [
+    "timestamp",
+    "machine_count",
+    "cycle_time",
+    "output_per_cycle",
+    "measurement_time",
+    "actual_output",
+    "theoretical_rate",
+    "actual_rate",
+    "efficiency"
+]
+
+
+# =========================
+# VALIDATION
+# =========================
+
+def _validate_number(value, name, minimum=None, strict=False):
+    if isinstance(value, bool):
+        raise ValueError(f"{name} must be a number")
+
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{name} must be a number")
+
+    if minimum is not None:
+        if strict and value <= minimum:
+            raise ValueError(
+                f"{name} must be greater than {minimum}"
+            )
+
+        if not strict and value < minimum:
+            raise ValueError(
+                f"{name} must be {minimum} or greater"
+            )
+
+    return value
+
+
+# =========================
 # THEORETICAL PRODUCTION
 # =========================
 
@@ -13,17 +60,33 @@ def calculate_production_rate(
     output_per_cycle,
     measurement_time
 ):
-    if machine_count <= 0:
-        raise ValueError("machine_count must be greater than 0")
+    machine_count = _validate_number(
+        machine_count,
+        "machine_count",
+        0,
+        strict=True
+    )
 
-    if cycle_time <= 0:
-        raise ValueError("cycle_time must be greater than 0")
+    cycle_time = _validate_number(
+        cycle_time,
+        "cycle_time",
+        0,
+        strict=True
+    )
 
-    if output_per_cycle <= 0:
-        raise ValueError("output_per_cycle must be greater than 0")
+    output_per_cycle = _validate_number(
+        output_per_cycle,
+        "output_per_cycle",
+        0,
+        strict=True
+    )
 
-    if measurement_time <= 0:
-        raise ValueError("measurement_time must be greater than 0")
+    measurement_time = _validate_number(
+        measurement_time,
+        "measurement_time",
+        0,
+        strict=True
+    )
 
     rate_per_second = (
         machine_count * output_per_cycle
@@ -49,15 +112,30 @@ def calculate_actual_production_rate(
     actual_output,
     measurement_time
 ):
-    if actual_output < 0:
-        raise ValueError("actual_output must be 0 or greater")
+    actual_output = _validate_number(
+        actual_output,
+        "actual_output",
+        0
+    )
 
-    if measurement_time <= 0:
-        raise ValueError("measurement_time must be greater than 0")
+    measurement_time = _validate_number(
+        measurement_time,
+        "measurement_time",
+        0,
+        strict=True
+    )
 
-    actual_rate_per_second = actual_output / measurement_time
-    actual_rate_per_minute = actual_rate_per_second * 60
-    actual_rate_per_hour = actual_rate_per_second * 3600
+    actual_rate_per_second = (
+        actual_output / measurement_time
+    )
+
+    actual_rate_per_minute = (
+        actual_rate_per_second * 60
+    )
+
+    actual_rate_per_hour = (
+        actual_rate_per_second * 3600
+    )
 
     return {
         "actual_rate_per_second": actual_rate_per_second,
@@ -75,25 +153,30 @@ def calculate_efficiency(
     theoretical_rate,
     actual_rate
 ):
-    if theoretical_rate <= 0:
-        raise ValueError(
-            "theoretical_rate must be greater than 0"
-        )
+    theoretical_rate = _validate_number(
+        theoretical_rate,
+        "theoretical_rate",
+        0,
+        strict=True
+    )
 
-    if actual_rate < 0:
-        raise ValueError(
-            "actual_rate must be 0 or greater"
-        )
+    actual_rate = _validate_number(
+        actual_rate,
+        "actual_rate",
+        0
+    )
 
     efficiency = (
         actual_rate / theoretical_rate
     ) * 100
 
+    # Small protection against floating-point overflow.
     efficiency = min(efficiency, 100.01)
 
     return {
         "efficiency_percent": efficiency
     }
+
 
 # =========================
 # SAVE MEASUREMENT
@@ -109,13 +192,10 @@ def save_measurement(
     actual_rate,
     efficiency
 ):
-    data_dir = (
-        Path(__file__).resolve().parent.parent / "data"
+    DATA_DIR.mkdir(
+        parents=True,
+        exist_ok=True
     )
-
-    data_dir.mkdir(exist_ok=True)
-
-    file_path = data_dir / "measurements.csv"
 
     measurement = {
         "timestamp": datetime.now().isoformat(
@@ -131,26 +211,13 @@ def save_measurement(
         "efficiency": efficiency
     }
 
-    fieldnames = [
-        "timestamp",
-        "machine_count",
-        "cycle_time",
-        "output_per_cycle",
-        "measurement_time",
-        "actual_output",
-        "theoretical_rate",
-        "actual_rate",
-        "efficiency"
-    ]
-
-    file_exists = file_path.exists()
     file_empty = (
-        not file_exists
-        or file_path.stat().st_size == 0
+        not MEASUREMENTS_FILE.exists()
+        or MEASUREMENTS_FILE.stat().st_size == 0
     )
 
     with open(
-        file_path,
+        MEASUREMENTS_FILE,
         "a",
         newline="",
         encoding="utf-8"
@@ -158,7 +225,7 @@ def save_measurement(
 
         writer = csv.DictWriter(
             file,
-            fieldnames=fieldnames
+            fieldnames=FIELDNAMES
         )
 
         if file_empty:
@@ -174,27 +241,64 @@ def save_measurement(
 # =========================
 
 def load_measurements():
-    data_dir = (
-        Path(__file__).resolve().parent.parent / "data"
-    )
-
-    file_path = data_dir / "measurements.csv"
-
-    if not file_path.exists():
+    if not MEASUREMENTS_FILE.exists():
         return []
 
-    with open(
-        file_path,
-        "r",
-        newline="",
-        encoding="utf-8"
-    ) as file:
+    measurements = []
 
-        reader = csv.DictReader(file)
+    try:
+        with open(
+            MEASUREMENTS_FILE,
+            "r",
+            newline="",
+            encoding="utf-8"
+        ) as file:
 
-        measurements = list(reader)
+            reader = csv.DictReader(file)
+
+            for row in reader:
+
+                if not row:
+                    continue
+
+                if not row.get("timestamp"):
+                    continue
+
+                required_fields = [
+                    "machine_count",
+                    "cycle_time",
+                    "output_per_cycle",
+                    "measurement_time",
+                    "actual_output",
+                    "theoretical_rate",
+                    "actual_rate",
+                    "efficiency"
+                ]
+
+                if any(
+                    not row.get(field)
+                    for field in required_fields
+                ):
+                    continue
+
+                try:
+                    for field in required_fields:
+                        float(row[field])
+
+                    measurements.append(row)
+
+                except (TypeError, ValueError):
+                    continue
+
+    except (
+        OSError,
+        csv.Error,
+        UnicodeDecodeError
+    ):
+        return []
 
     return measurements
+
 
 # =========================
 # TREND ANALYSIS
@@ -207,15 +311,34 @@ def calculate_trend(measurements):
             "change_percent": 0
         }
 
-    efficiencies = [
-        float(measurement["efficiency"])
-        for measurement in measurements
-    ]
+    efficiencies = []
+    actual_rates = []
 
-    actual_rates = [
-        float(measurement["actual_rate"])
-        for measurement in measurements
-    ]
+    for measurement in measurements:
+        try:
+            efficiency = float(
+                measurement["efficiency"]
+            )
+
+            actual_rate = float(
+                measurement["actual_rate"]
+            )
+
+            efficiencies.append(efficiency)
+            actual_rates.append(actual_rate)
+
+        except (
+            KeyError,
+            TypeError,
+            ValueError
+        ):
+            continue
+
+    if not efficiencies:
+        return {
+            "trend": "no_data",
+            "change_percent": 0
+        }
 
     if len(efficiencies) < 2:
         return {
@@ -236,8 +359,10 @@ def calculate_trend(measurements):
 
     if last_efficiency > first_efficiency:
         trend = "improving"
+
     elif last_efficiency < first_efficiency:
         trend = "declining"
+
     else:
         trend = "stable"
 
@@ -247,24 +372,34 @@ def calculate_trend(measurements):
         "first_efficiency": first_efficiency,
         "last_efficiency": last_efficiency,
         "average_efficiency": (
-            sum(efficiencies) / len(efficiencies)
+            sum(efficiencies)
+            / len(efficiencies)
         ),
         "best_efficiency": max(efficiencies),
         "worst_efficiency": min(efficiencies),
         "average_actual_rate": (
-            sum(actual_rates) / len(actual_rates)
+            sum(actual_rates)
+            / len(actual_rates)
         )
     }
+
 
 # =========================
 # BOTTLENECK DETECTION
 # =========================
 
 def detect_bottleneck(efficiency):
+    efficiency = _validate_number(
+        efficiency,
+        "efficiency"
+    )
+
     if efficiency >= 90:
         status = "normal"
+
     elif efficiency >= 75:
         status = "warning"
+
     else:
         status = "bottleneck"
 
@@ -272,6 +407,7 @@ def detect_bottleneck(efficiency):
         "status": status,
         "efficiency": efficiency
     }
+
 
 # =========================
 # PRODUCTION FORECAST
@@ -285,13 +421,32 @@ def forecast_production_rate(measurements):
             "status": "no_data"
         }
 
-    actual_rates = [
-        float(measurement["actual_rate"])
-        for measurement in measurements
-    ]
+    actual_rates = []
+
+    for measurement in measurements:
+        try:
+            actual_rate = float(
+                measurement["actual_rate"]
+            )
+
+            actual_rates.append(actual_rate)
+
+        except (
+            KeyError,
+            TypeError,
+            ValueError
+        ):
+            continue
+
+    if not actual_rates:
+        return {
+            "forecast_rate": 0,
+            "status": "no_data"
+        }
 
     forecast_rate = (
-        sum(actual_rates) / len(actual_rates)
+        sum(actual_rates)
+        / len(actual_rates)
     )
 
     return {

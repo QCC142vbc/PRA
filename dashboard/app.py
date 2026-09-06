@@ -1,11 +1,23 @@
-import streamlit as st
 import sys
 from pathlib import Path
-import pandas as pd
 
-sys.path.append(
-    str(Path(__file__).resolve().parent.parent)
-)
+import pandas as pd
+import streamlit as st
+
+
+# =========================
+# PROJECT PATH
+# =========================
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.append(str(PROJECT_ROOT))
+
+
+# =========================
+# CORE IMPORTS
+# =========================
 
 from core.production_rate import (
     calculate_production_rate,
@@ -67,6 +79,7 @@ with col3:
         step=0.1
     )
 
+
 col1, col2 = st.columns(2)
 
 with col1:
@@ -92,31 +105,47 @@ with col2:
 
 if st.button("Calculate", type="primary"):
 
-    theoretical = calculate_production_rate(
-        machine_count=machine_count,
-        cycle_time=cycle_time,
-        output_per_cycle=output_per_cycle,
-        measurement_time=measurement_time
-    )
+    try:
 
-    actual = calculate_actual_production_rate(
-        actual_output=actual_output,
-        measurement_time=measurement_time
-    )
+        theoretical = calculate_production_rate(
+            machine_count=machine_count,
+            cycle_time=cycle_time,
+            output_per_cycle=output_per_cycle,
+            measurement_time=measurement_time
+        )
 
-    efficiency = calculate_efficiency(
-        theoretical_rate=theoretical["rate_per_second"],
-        actual_rate=actual["actual_rate_per_second"]
-    )
+        actual = calculate_actual_production_rate(
+            actual_output=actual_output,
+            measurement_time=measurement_time
+        )
 
-    bottleneck = detect_bottleneck(
-        efficiency["efficiency_percent"]
-    )
+        efficiency = calculate_efficiency(
+            theoretical_rate=theoretical[
+                "rate_per_second"
+            ],
+            actual_rate=actual[
+                "actual_rate_per_second"
+            ]
+        )
 
-    st.session_state["theoretical"] = theoretical
-    st.session_state["actual"] = actual
-    st.session_state["efficiency"] = efficiency
-    st.session_state["bottleneck"] = bottleneck
+        bottleneck = detect_bottleneck(
+            efficiency[
+                "efficiency_percent"
+            ]
+        )
+
+        st.session_state["theoretical"] = theoretical
+        st.session_state["actual"] = actual
+        st.session_state["efficiency"] = efficiency
+        st.session_state["bottleneck"] = bottleneck
+
+        st.success("Calculation completed.")
+
+    except ValueError as error:
+
+        st.error(
+            f"Calculation error: {error}"
+        )
 
 
 # =========================
@@ -254,28 +283,40 @@ if "theoretical" in st.session_state:
 
     if st.button("Save Measurement"):
 
-        saved_measurement = save_measurement(
-            machine_count=machine_count,
-            cycle_time=cycle_time,
-            output_per_cycle=output_per_cycle,
-            measurement_time=measurement_time,
-            actual_output=actual_output,
-            theoretical_rate=theoretical[
-                "rate_per_second"
-            ],
-            actual_rate=actual[
-                "actual_rate_per_second"
-            ],
-            efficiency=efficiency[
-                "efficiency_percent"
-            ]
-        )
+        try:
 
-        st.success(
-            "Measurement saved successfully."
-        )
+            saved_measurement = save_measurement(
+                machine_count=machine_count,
+                cycle_time=cycle_time,
+                output_per_cycle=output_per_cycle,
+                measurement_time=measurement_time,
+                actual_output=actual_output,
+                theoretical_rate=theoretical[
+                    "rate_per_second"
+                ],
+                actual_rate=actual[
+                    "actual_rate_per_second"
+                ],
+                efficiency=efficiency[
+                    "efficiency_percent"
+                ]
+            )
 
-        st.json(saved_measurement)
+            st.success(
+                "Measurement saved successfully."
+            )
+
+            st.json(saved_measurement)
+
+        except (
+            OSError,
+            ValueError,
+            csv.Error
+        ) as error:
+
+            st.error(
+                f"Could not save measurement: {error}"
+            )
 
 
 # =========================
@@ -297,43 +338,51 @@ if not measurements:
 else:
 
     # =========================
+    # TREND DATA
+    # =========================
+
+    trend = calculate_trend(measurements)
+
+    # =========================
     # STATISTICS
     # =========================
 
-    efficiencies = [
-        float(measurement["efficiency"])
-        for measurement in measurements
-    ]
+    if trend["trend"] not in (
+        "no_data",
+        "insufficient_data"
+    ):
 
-    actual_rates = [
-        float(measurement["actual_rate"])
-        for measurement in measurements
-    ]
+        col1, col2, col3, col4 = st.columns(4)
 
-    col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric(
+                "Measurements",
+                len(measurements)
+            )
 
-    with col1:
+        with col2:
+            st.metric(
+                "Average Efficiency",
+                f"{trend['average_efficiency']:.2f}%"
+            )
+
+        with col3:
+            st.metric(
+                "Best Efficiency",
+                f"{trend['best_efficiency']:.2f}%"
+            )
+
+        with col4:
+            st.metric(
+                "Worst Efficiency",
+                f"{trend['worst_efficiency']:.2f}%"
+            )
+
+    else:
+
         st.metric(
             "Measurements",
             len(measurements)
-        )
-
-    with col2:
-        st.metric(
-            "Average Efficiency",
-            f"{sum(efficiencies) / len(efficiencies):.2f}%"
-        )
-
-    with col3:
-        st.metric(
-            "Best Efficiency",
-            f"{max(efficiencies):.2f}%"
-        )
-
-    with col4:
-        st.metric(
-            "Worst Efficiency",
-            f"{min(efficiencies):.2f}%"
         )
 
 
@@ -347,36 +396,53 @@ else:
 
     for measurement in measurements:
 
-        display_data.append({
-            "Timestamp": measurement["timestamp"],
-            "Machines": int(
-                measurement["machine_count"]
-            ),
-            "Cycle Time": float(
-                measurement["cycle_time"]
-            ),
-            "Measurement Time": float(
-                measurement["measurement_time"]
-            ),
-            "Actual Output": float(
-                measurement["actual_output"]
-            ),
-            "Theoretical Rate": float(
-                measurement["theoretical_rate"]
-            ),
-            "Actual Rate": float(
-                measurement["actual_rate"]
-            ),
-            "Efficiency": float(
-                measurement["efficiency"]
-            )
-        })
+        try:
 
-    st.dataframe(
-        display_data,
-        width="stretch",
-        hide_index=True
-    )
+            display_data.append({
+                "Timestamp": measurement["timestamp"],
+                "Machines": int(
+                    float(measurement["machine_count"])
+                ),
+                "Cycle Time": float(
+                    measurement["cycle_time"]
+                ),
+                "Measurement Time": float(
+                    measurement["measurement_time"]
+                ),
+                "Actual Output": float(
+                    measurement["actual_output"]
+                ),
+                "Theoretical Rate": float(
+                    measurement["theoretical_rate"]
+                ),
+                "Actual Rate": float(
+                    measurement["actual_rate"]
+                ),
+                "Efficiency": float(
+                    measurement["efficiency"]
+                )
+            })
+
+        except (
+            KeyError,
+            TypeError,
+            ValueError
+        ):
+            continue
+
+    if display_data:
+
+        st.dataframe(
+            display_data,
+            width="stretch",
+            hide_index=True
+        )
+
+    else:
+
+        st.warning(
+            "No valid historical records available."
+        )
 
 
 # =========================
@@ -432,28 +498,50 @@ else:
     # EFFICIENCY CHART
     # =========================
 
-    chart_data = pd.DataFrame({
-        "Timestamp": [
-            measurement["timestamp"]
-            for measurement in measurements
-        ],
-        "Efficiency": [
-            float(measurement["efficiency"])
-            for measurement in measurements
-        ]
-    })
+    chart_data = []
 
-    chart_data["Timestamp"] = pd.to_datetime(
-        chart_data["Timestamp"]
-    )
+    for measurement in measurements:
 
-    chart_data = chart_data.set_index(
-        "Timestamp"
-    )
+        try:
 
-    st.line_chart(
-        chart_data["Efficiency"]
-    )
+            chart_data.append({
+                "Timestamp": measurement["timestamp"],
+                "Efficiency": float(
+                    measurement["efficiency"]
+                )
+            })
+
+        except (
+            KeyError,
+            TypeError,
+            ValueError
+        ):
+            continue
+
+    if chart_data:
+
+        chart_data = pd.DataFrame(
+            chart_data
+        )
+
+        chart_data["Timestamp"] = pd.to_datetime(
+            chart_data["Timestamp"],
+            errors="coerce"
+        )
+
+        chart_data = chart_data.dropna(
+            subset=["Timestamp"]
+        )
+
+        if not chart_data.empty:
+
+            chart_data = chart_data.set_index(
+                "Timestamp"
+            )
+
+            st.line_chart(
+                chart_data["Efficiency"]
+            )
 
     st.write(
         f"First efficiency: "
@@ -474,7 +562,9 @@ st.divider()
 
 st.subheader("Production Forecast")
 
-forecast = forecast_production_rate(measurements)
+forecast = forecast_production_rate(
+    measurements
+)
 
 if forecast["status"] == "no_data":
 
