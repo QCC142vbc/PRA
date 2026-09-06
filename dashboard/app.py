@@ -1,10 +1,22 @@
 import streamlit as st
 import sys
 from pathlib import Path
+import pandas as pd
 
 sys.path.append(
     str(Path(__file__).resolve().parent.parent)
 )
+
+from core.production_rate import (
+    calculate_production_rate,
+    calculate_actual_production_rate,
+    calculate_efficiency,
+    save_measurement,
+    load_measurements,
+    calculate_trend
+)
+
+
 
 from core.production_rate import (
     calculate_production_rate,
@@ -95,14 +107,14 @@ if st.button("Calculate", type="primary"):
     )
 
     actual = calculate_actual_production_rate(
-        actual_output=actual_output,
-        measurement_time=measurement_time
-    )
+    actual_output=actual_output,
+    measurement_time=measurement_time
+)
 
     efficiency = calculate_efficiency(
-        theoretical_rate=theoretical["rate_per_second"],
-        actual_rate=actual["actual_rate_per_second"]
-    )
+    theoretical_rate=theoretical["rate_per_second"],
+    actual_rate=actual["actual_rate_per_second"]
+)
 
     st.session_state["theoretical"] = theoretical
     st.session_state["actual"] = actual
@@ -236,7 +248,6 @@ st.divider()
 st.subheader("Historical Measurements")
 
 measurements = load_measurements()
-
 if not measurements:
 
     st.info("No historical measurements available.")
@@ -322,4 +333,80 @@ else:
         display_data,
         width="stretch",
         hide_index=True
+    )
+
+# =========================
+# TREND ANALYSIS
+# =========================
+
+st.divider()
+
+st.subheader("Production Trend")
+
+trend = calculate_trend(measurements)
+if trend["trend"] == "no_data":
+
+    st.info("No data available for trend analysis.")
+
+elif trend["trend"] == "insufficient_data":
+
+    st.info("At least two measurements are required.")
+
+else:
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.metric(
+            "Trend",
+            trend["trend"].replace("_", " ").title()
+        )
+
+    with col2:
+        st.metric(
+            "Efficiency Change",
+            f"{trend['change_percent']:+.2f}%"
+        )
+
+    with col3:
+        st.metric(
+            "Average Actual Rate",
+            f"{trend['average_actual_rate']:.2f} / sec"
+        )
+
+    st.divider()
+
+    # =========================
+    # EFFICIENCY CHART
+    # =========================
+
+    chart_data = pd.DataFrame({
+        "Timestamp": [
+            measurement["timestamp"]
+            for measurement in measurements
+        ],
+        "Efficiency": [
+            float(measurement["efficiency"])
+            for measurement in measurements
+        ]
+    })
+
+    chart_data["Timestamp"] = pd.to_datetime(
+        chart_data["Timestamp"]
+    )
+
+    chart_data = chart_data.set_index("Timestamp")
+
+    st.line_chart(
+        chart_data["Efficiency"]
+    )
+
+    st.write(
+        f"First efficiency: "
+        f"{trend['first_efficiency']:.2f}%"
+    )
+
+    st.write(
+        f"Last efficiency: "
+        f"{trend['last_efficiency']:.2f}%"
     )

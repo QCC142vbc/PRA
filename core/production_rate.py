@@ -195,3 +195,63 @@ def load_measurements():
         measurements = list(reader)
 
     return measurements
+
+# =========================
+# TREND ANALYSIS
+# =========================
+
+def calculate_trend(measurements):
+    if not measurements:
+        return {
+            "trend": "no_data",
+            "change_percent": 0
+        }
+
+    efficiencies = [
+        float(measurement["efficiency"])
+        for measurement in measurements
+    ]
+
+    actual_rates = [
+        float(measurement["actual_rate"])
+        for measurement in measurements
+    ]
+
+    if len(efficiencies) < 2:
+        return {
+            "trend": "insufficient_data",
+            "change_percent": 0
+        }
+
+    first_efficiency = efficiencies[0]
+    last_efficiency = efficiencies[-1]
+
+    if first_efficiency == 0:
+        efficiency_change = 0
+    else:
+        efficiency_change = (
+            (last_efficiency - first_efficiency)
+            / first_efficiency
+        ) * 100
+
+    if last_efficiency > first_efficiency:
+        trend = "improving"
+    elif last_efficiency < first_efficiency:
+        trend = "declining"
+    else:
+        trend = "stable"
+
+    return {
+        "trend": trend,
+        "change_percent": efficiency_change,
+        "first_efficiency": first_efficiency,
+        "last_efficiency": last_efficiency,
+        "average_efficiency": (
+            sum(efficiencies) / len(efficiencies)
+        ),
+        "best_efficiency": max(efficiencies),
+        "worst_efficiency": min(efficiencies),
+        "average_actual_rate": (
+            sum(actual_rates) / len(actual_rates)
+        )
+    }
