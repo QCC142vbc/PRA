@@ -4,7 +4,12 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-from core.production_rate import calculate_production_rate
+from core.production_rate import (
+    calculate_production_rate,
+    calculate_actual_production_rate,
+    calculate_efficiency
+)
+
 
 st.set_page_config(
     page_title="Production Rate Analyzer",
@@ -12,7 +17,12 @@ st.set_page_config(
 )
 
 st.title("Production Rate Analyzer")
-st.write("Calculate theoretical production capacity.")
+st.write("Compare theoretical and actual production performance.")
+
+
+# =========================
+# PRODUCTION SETUP
+# =========================
 
 st.subheader("Production Setup")
 
@@ -44,37 +54,112 @@ measurement_time = st.number_input(
     step=1.0
 )
 
+actual_output = st.number_input(
+    "Actual production",
+    min_value=0.0,
+    value=2750.0,
+    step=1.0
+)
+
+
+# =========================
+# CALCULATION
+# =========================
+
 if st.button("Calculate", type="primary"):
 
-    result = calculate_production_rate(
+    theoretical = calculate_production_rate(
         machine_count=machine_count,
         cycle_time=cycle_time,
         output_per_cycle=output_per_cycle,
         measurement_time=measurement_time
     )
 
-    st.subheader("Results")
+    actual = calculate_actual_production_rate(
+        actual_output=actual_output,
+        measurement_time=measurement_time
+    )
 
-    col1, col2 = st.columns(2)
+    efficiency = calculate_efficiency(
+        theoretical_rate=theoretical["rate_per_second"],
+        actual_rate=actual["actual_rate_per_second"]
+    )
+
+
+    # =========================
+    # RESULTS
+    # =========================
+
+    st.subheader("Production Performance")
+
+
+    col1, col2, col3 = st.columns(3)
 
     with col1:
         st.metric(
-            "Production/sec",
-            f"{result['rate_per_second']:.2f}"
-        )
-
-        st.metric(
-            "Production / min",
-            f"{result['rate_per_minute']:.2f}"
+            "Theoretical Rate",
+            f"{theoretical['rate_per_second']:.2f} / sec"
         )
 
     with col2:
         st.metric(
-            "Production / hour",
-            f"{result['rate_per_hour']:.2f}"
+            "Actual Rate",
+            f"{actual['actual_rate_per_second']:.2f} / sec"
         )
 
+    with col3:
         st.metric(
-            "Total production",
-            f"{result['total_output']:.2f}"
+            "Efficiency",
+            f"{efficiency['efficiency_percent']:.2f}%"
+        )
+
+
+    st.divider()
+
+
+    # =========================
+    # DETAILED RESULTS
+    # =========================
+
+    st.subheader("Detailed Results")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.write("Theoretical Production")
+
+        st.write(
+            f"Per second: {theoretical['rate_per_second']:.2f}"
+        )
+
+        st.write(
+            f"Per minute: {theoretical['rate_per_minute']:.2f}"
+        )
+
+        st.write(
+            f"Per hour: {theoretical['rate_per_hour']:.2f}"
+        )
+
+        st.write(
+            f"Measurement output: {theoretical['total_output']:.2f}"
+        )
+
+
+    with col2:
+        st.write("Actual Production")
+
+        st.write(
+            f"Per second: {actual['actual_rate_per_second']:.2f}"
+        )
+
+        st.write(
+            f"Per minute: {actual['actual_rate_per_minute']:.2f}"
+        )
+
+        st.write(
+            f"Per hour: {actual['actual_rate_per_hour']:.2f}"
+        )
+
+        st.write(
+            f"Actual output: {actual['actual_output']:.2f}"
         )

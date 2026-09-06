@@ -1,3 +1,43 @@
+def calculate_efficiency(
+        theoretical_rate, actual_rate
+):
+    if theoretical_rate <= 0:
+        raise ValueError("Theoretical Rate must be greater than 0!")
+
+    if actual_rate <= 0:
+        raise ValueError("Actual Rate must be greater than 0!")
+
+    efficiency = (actual_rate / theoretical_rate) * 100
+
+    return {
+        "efficiency_percent": efficiency
+    }
+
+def calculate_actual_production_rate(
+        actual_output, measurement_time
+):
+    if actual_output <= 0:
+        raise ValueError("Actual Output must be greater than 0!")
+    if measurement_time <= 0:
+        raise ValueError("Measurement Time must be greater than 0!")
+
+    actual_rate_per_second = actual_output / measurement_time
+
+    actual_rate_per_minute = actual_rate_per_second * 60
+    actual_rate_per_hour = actual_rate_per_second * 3600
+
+    return {
+        "actual_rate_per_second": actual_rate_per_second,
+        "actual_rate_per_minute": actual_rate_per_minute,
+        "actual_rate_per_hour": actual_rate_per_hour,
+        "actual_output": actual_output
+    }
+
+
+
+
+
+
 def calculate_production_rate(
     machine_count,
     cycle_time,
