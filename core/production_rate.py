@@ -551,3 +551,375 @@ def calculate_analytics(measurements):
             coefficient_of_variation
         )
     }
+
+# =========================
+# ADVANCED FORECASTING
+# =========================
+
+def moving_average_forecast(measurements, window=3):
+    if not measurements:
+        return {
+            "forecast_rate": 0,
+            "status": "no_data"
+        }
+
+    if window <= 0:
+        raise ValueError("window must be greater than 0")
+
+    actual_rates = []
+
+    for measurement in measurements:
+        try:
+            actual_rate = float(measurement["actual_rate"])
+            actual_rates.append(actual_rate)
+        except (KeyError, TypeError, ValueError):
+            continue
+
+    if not actual_rates:
+        return {
+            "forecast_rate": 0,
+            "status": "no_data"
+        }
+
+    selected_rates = actual_rates[-window:]
+
+    forecast_rate = (
+        sum(selected_rates)
+        / len(selected_rates)
+    )
+
+    return {
+        "forecast_rate": forecast_rate,
+        "status": "ok",
+        "method": "moving_average",
+        "window": len(selected_rates),
+        "measurement_count": len(actual_rates)
+    }
+
+
+def weighted_moving_average_forecast(measurements, window=3):
+    if not measurements:
+        return {
+            "forecast_rate": 0,
+            "status": "no_data"
+        }
+
+    if window <= 0:
+        raise ValueError("window must be greater than 0")
+
+    actual_rates = []
+
+    for measurement in measurements:
+        try:
+            actual_rate = float(measurement["actual_rate"])
+            actual_rates.append(actual_rate)
+        except (KeyError, TypeError, ValueError):
+            continue
+
+    if not actual_rates:
+        return {
+            "forecast_rate": 0,
+            "status": "no_data"
+        }
+
+    selected_rates = actual_rates[-window:]
+
+    weights = range(1, len(selected_rates) + 1)
+
+    weighted_sum = sum(
+        rate * weight
+        for rate, weight in zip(selected_rates, weights)
+    )
+
+    total_weight = sum(weights)
+
+    forecast_rate = weighted_sum / total_weight
+
+    return {
+        "forecast_rate": forecast_rate,
+        "status": "ok",
+        "method": "weighted_moving_average",
+        "window": len(selected_rates),
+        "measurement_count": len(actual_rates)
+    }
+
+
+def trend_forecast(measurements):
+    if not measurements:
+        return {
+            "forecast_rate": 0,
+            "status": "no_data"
+        }
+
+    actual_rates = []
+
+    for measurement in measurements:
+        try:
+            actual_rate = float(measurement["actual_rate"])
+            actual_rates.append(actual_rate)
+        except (KeyError, TypeError, ValueError):
+            continue
+
+    if not actual_rates:
+        return {
+            "forecast_rate": 0,
+            "status": "no_data"
+        }
+
+    if len(actual_rates) < 2:
+        return {
+            "forecast_rate": actual_rates[-1],
+            "status": "insufficient_data"
+        }
+
+    n = len(actual_rates)
+
+    x_mean = (n - 1) / 2
+    y_mean = sum(actual_rates) / n
+
+    numerator = sum(
+        (x - x_mean) * (y - y_mean)
+        for x, y in enumerate(actual_rates)
+    )
+
+    denominator = sum(
+        (x - x_mean) ** 2
+        for x in range(n)
+    )
+
+    if denominator == 0:
+        slope = 0
+    else:
+        slope = numerator / denominator
+
+    next_rate = actual_rates[-1] + slope
+
+    return {
+        "forecast_rate": max(next_rate, 0),
+        "status": "ok",
+        "method": "trend",
+        "trend_slope": slope,
+        "measurement_count": n
+    }
+
+
+def calculate_forecast_accuracy(actual_rate, forecast_rate):
+    actual_rate = _validate_number(
+        actual_rate,
+        "actual_rate",
+        0
+    )
+
+    forecast_rate = _validate_number(
+        forecast_rate,
+        "forecast_rate",
+        0
+    )
+
+    if actual_rate == 0:
+        return {
+            "accuracy_percent": 0,
+            "status": "undefined"
+        }
+
+    error = abs(actual_rate - forecast_rate)
+
+    accuracy = (
+        1 - (error / actual_rate)
+    ) * 100
+
+    accuracy = max(0, accuracy)
+
+    return {
+        "accuracy_percent": accuracy,
+        "status": "ok"
+    }
+
+
+def calculate_forecast_reliability(measurements):
+    if not measurements:
+        return {
+            "reliability_percent": 0,
+            "status": "no_data"
+        }
+
+    actual_rates = []
+
+    for measurement in measurements:
+        try:
+            actual_rates.append(
+                float(measurement["actual_rate"])
+            )
+        except (KeyError, TypeError, ValueError):
+            continue
+
+    if not actual_rates:
+        return {
+            "reliability_percent": 0,
+            "status": "no_data"
+        }
+
+    if len(actual_rates) < 2:
+        return {
+            "reliability_percent": 50,
+            "status": "insufficient_data"
+        }
+
+    average = sum(actual_rates) / len(actual_rates)
+
+    if average == 0:
+        return {
+            "reliability_percent": 0,
+            "status": "undefined"
+        }
+
+    variance = sum(
+        (rate - average) ** 2
+        for rate in actual_rates
+    ) / len(actual_rates)
+
+    standard_deviation = variance ** 0.5
+
+    coefficient_of_variation = (
+        standard_deviation / average
+    ) * 100
+
+    reliability = 100 - coefficient_of_variation
+
+    reliability = max(
+        0,
+        min(reliability, 100)
+    )
+
+    return {
+        "reliability_percent": reliability,
+        "status": "ok",
+        "coefficient_of_variation": coefficient_of_variation
+    }
+
+# =========================
+# FORECAST ACCURACY TRACKING
+# =========================
+
+def evaluate_forecast_accuracy(
+    measurements,
+    method="moving_average",
+    window=3
+):
+    if not measurements:
+        return {
+            "status": "no_data",
+            "accuracy_percent": 0
+        }
+
+    if window <= 0:
+        raise ValueError("window must be greater than 0")
+
+    if method not in (
+        "moving_average",
+        "weighted_moving_average",
+        "trend"
+    ):
+        raise ValueError(
+            "Unsupported forecast method"
+        )
+
+    actual_rates = []
+
+    for measurement in measurements:
+        try:
+            actual_rates.append(
+                float(measurement["actual_rate"])
+            )
+        except (
+            KeyError,
+            TypeError,
+            ValueError
+        ):
+            continue
+
+    if len(actual_rates) <= window:
+        return {
+            "status": "insufficient_data",
+            "accuracy_percent": 0
+        }
+
+    accuracies = []
+    errors = []
+
+    for index in range(window, len(actual_rates)):
+
+        history = [
+            {
+                "actual_rate": str(rate)
+            }
+            for rate in actual_rates[:index]
+        ]
+
+        if method == "moving_average":
+
+            forecast = moving_average_forecast(
+                history,
+                window=window
+            )
+
+        elif method == "weighted_moving_average":
+
+            forecast = weighted_moving_average_forecast(
+                history,
+                window=window
+            )
+
+        else:
+
+            forecast = trend_forecast(
+                history
+            )
+
+        forecast_rate = forecast["forecast_rate"]
+        actual_rate = actual_rates[index]
+
+        if actual_rate == 0:
+            continue
+
+        error = abs(
+            actual_rate - forecast_rate
+        )
+
+        accuracy = (
+            1 - (error / actual_rate)
+        ) * 100
+
+        accuracy = max(
+            0,
+            accuracy
+        )
+
+        accuracies.append(
+            accuracy
+        )
+
+        errors.append(
+            error
+        )
+
+    if not accuracies:
+        return {
+            "status": "no_data",
+            "accuracy_percent": 0
+        }
+
+    return {
+        "status": "ok",
+        "accuracy_percent": (
+            sum(accuracies)
+            / len(accuracies)
+        ),
+        "average_error": (
+            sum(errors)
+            / len(errors)
+        ),
+        "evaluation_count": len(accuracies),
+        "method": method,
+        "window": window
+    }

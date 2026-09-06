@@ -27,6 +27,12 @@ from core.production_rate import (
     calculate_trend,
     forecast_production_rate,
     calculate_analytics,
+    moving_average_forecast,
+    weighted_moving_average_forecast,
+    trend_forecast,
+    calculate_forecast_accuracy,
+    calculate_forecast_reliability,
+    evaluate_forecast_accuracy,
 )
 
 
@@ -377,3 +383,218 @@ def test_calculate_analytics_no_data():
 
     assert result["status"] == "no_data"
 
+
+# =========================
+# MOVING AVERAGE
+# =========================
+
+def test_moving_average_forecast():
+
+    measurements = [
+        {"actual_rate": "10"},
+        {"actual_rate": "12"},
+        {"actual_rate": "14"},
+        {"actual_rate": "16"}
+    ]
+
+    result = moving_average_forecast(
+        measurements,
+        window=3
+    )
+
+    assert result["status"] == "ok"
+    assert result["method"] == "moving_average"
+    assert result["forecast_rate"] == pytest.approx(14)
+    assert result["window"] == 3
+
+
+# =========================
+# WEIGHTED MOVING AVERAGE
+# =========================
+
+def test_weighted_moving_average_forecast():
+
+    measurements = [
+        {"actual_rate": "10"},
+        {"actual_rate": "12"},
+        {"actual_rate": "14"}
+    ]
+
+    result = weighted_moving_average_forecast(
+        measurements,
+        window=3
+    )
+
+    assert result["status"] == "ok"
+    assert result["method"] == "weighted_moving_average"
+
+    assert result["forecast_rate"] == pytest.approx(
+        (10 * 1 + 12 * 2 + 14 * 3) / 6
+    )
+
+
+# =========================
+# TREND FORECAST
+# =========================
+
+def test_trend_forecast():
+
+    measurements = [
+        {"actual_rate": "10"},
+        {"actual_rate": "12"},
+        {"actual_rate": "14"},
+        {"actual_rate": "16"}
+    ]
+
+    result = trend_forecast(measurements)
+
+    assert result["status"] == "ok"
+    assert result["method"] == "trend"
+    assert result["forecast_rate"] == pytest.approx(18)
+    assert result["trend_slope"] == pytest.approx(2)
+
+
+# =========================
+# FORECAST ACCURACY
+# =========================
+
+def test_forecast_accuracy():
+
+    result = calculate_forecast_accuracy(
+        actual_rate=100,
+        forecast_rate=90
+    )
+
+    assert result["status"] == "ok"
+    assert result["accuracy_percent"] == pytest.approx(90)
+
+
+# =========================
+# FORECAST RELIABILITY
+# =========================
+
+def test_forecast_reliability():
+
+    measurements = [
+        {"actual_rate": "10"},
+        {"actual_rate": "10"},
+        {"actual_rate": "10"}
+    ]
+
+    result = calculate_forecast_reliability(
+        measurements
+    )
+
+    assert result["status"] == "ok"
+    assert result["reliability_percent"] == pytest.approx(100)
+
+
+# =========================
+# FORECAST NO DATA
+# =========================
+
+def test_forecast_no_data():
+
+    assert (
+        moving_average_forecast([])["status"]
+        == "no_data"
+    )
+
+    assert (
+        weighted_moving_average_forecast([])["status"]
+        == "no_data"
+    )
+
+    assert (
+        trend_forecast([])["status"]
+        == "no_data"
+    )
+
+    assert (
+        calculate_forecast_reliability([])["status"]
+        == "no_data"
+    )
+
+
+# =========================
+# FORECAST ACCURACY TRACKING
+# =========================
+
+def test_evaluate_forecast_accuracy():
+
+    measurements = [
+        {"actual_rate": "10"},
+        {"actual_rate": "12"},
+        {"actual_rate": "14"},
+        {"actual_rate": "16"},
+        {"actual_rate": "18"}
+    ]
+
+    result = evaluate_forecast_accuracy(
+        measurements,
+        method="moving_average",
+        window=3
+    )
+
+    assert result["status"] == "ok"
+    assert result["method"] == "moving_average"
+    assert result["window"] == 3
+    assert result["evaluation_count"] == 2
+    assert result["accuracy_percent"] > 0
+
+
+def test_evaluate_weighted_forecast_accuracy():
+
+    measurements = [
+        {"actual_rate": "10"},
+        {"actual_rate": "12"},
+        {"actual_rate": "14"},
+        {"actual_rate": "16"},
+        {"actual_rate": "18"}
+    ]
+
+    result = evaluate_forecast_accuracy(
+        measurements,
+        method="weighted_moving_average",
+        window=3
+    )
+
+    assert result["status"] == "ok"
+    assert result["method"] == "weighted_moving_average"
+    assert result["evaluation_count"] == 2
+
+
+def test_evaluate_trend_forecast_accuracy():
+
+    measurements = [
+        {"actual_rate": "10"},
+        {"actual_rate": "12"},
+        {"actual_rate": "14"},
+        {"actual_rate": "16"},
+        {"actual_rate": "18"}
+    ]
+
+    result = evaluate_forecast_accuracy(
+        measurements,
+        method="trend"
+    )
+
+    assert result["status"] == "ok"
+    assert result["method"] == "trend"
+    assert result["evaluation_count"] == 2
+
+
+def test_evaluate_forecast_accuracy_insufficient_data():
+
+    measurements = [
+        {"actual_rate": "10"},
+        {"actual_rate": "12"}
+    ]
+
+    result = evaluate_forecast_accuracy(
+        measurements,
+        method="moving_average",
+        window=3
+    )
+
+    assert result["status"] == "insufficient_data"

@@ -1,3 +1,4 @@
+
 import csv
 import sys
 from pathlib import Path
@@ -29,7 +30,13 @@ from core.production_rate import (
     calculate_trend,
     detect_bottleneck,
     forecast_production_rate,
-    calculate_analytics
+    calculate_analytics,
+    moving_average_forecast,
+    weighted_moving_average_forecast,
+    trend_forecast,
+    calculate_forecast_accuracy,
+    calculate_forecast_reliability,
+    evaluate_forecast_accuracy
 )
 
 
@@ -656,18 +663,14 @@ else:
 
 
 # =========================
-# PRODUCTION FORECAST
+# V0.10 ADVANCED FORECASTING
 # =========================
 
 st.divider()
 
-st.subheader("Production Forecast")
+st.subheader("Advanced Forecasting")
 
-forecast = forecast_production_rate(
-    measurements
-)
-
-if forecast["status"] == "no_data":
+if not measurements:
 
     st.info(
         "No data available for forecasting."
@@ -675,16 +678,310 @@ if forecast["status"] == "no_data":
 
 else:
 
-    col1, col2 = st.columns(2)
+    moving_average = moving_average_forecast(
+        measurements,
+        window=3
+    )
 
-    with col1:
-        st.metric(
-            "Forecast Production Rate",
-            f"{forecast['forecast_rate']:.2f} / sec"
+    weighted_average = weighted_moving_average_forecast(
+        measurements,
+        window=3
+    )
+
+    trend_prediction = trend_forecast(
+        measurements
+    )
+
+    reliability = calculate_forecast_reliability(
+        measurements
+    )
+
+    # =========================
+    # FORECAST ACCURACY
+    # =========================
+
+    moving_accuracy = evaluate_forecast_accuracy(
+        measurements,
+        method="moving_average",
+        window=3
+    )
+
+    weighted_accuracy = evaluate_forecast_accuracy(
+        measurements,
+        method="weighted_moving_average",
+        window=3
+    )
+
+    trend_accuracy = evaluate_forecast_accuracy(
+        measurements,
+        method="trend"
+    )
+
+    if (
+        moving_average["status"] == "no_data"
+        or weighted_average["status"] == "no_data"
+        or trend_prediction["status"] == "no_data"
+    ):
+
+        st.info(
+            "Not enough valid data for forecasting."
         )
 
-    with col2:
-        st.metric(
-            "Based On Measurements",
-            forecast["measurement_count"]
+    else:
+
+        st.write(
+            "Production rate forecasts using multiple forecasting methods."
         )
+
+        # =========================
+        # FORECAST METHODS
+        # =========================
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+
+            st.metric(
+                "Moving Average",
+                f"{moving_average['forecast_rate']:.2f} / sec"
+            )
+
+            st.caption(
+                f"Window: {moving_average['window']} measurements"
+            )
+
+        with col2:
+
+            st.metric(
+                "Weighted Moving Average",
+                f"{weighted_average['forecast_rate']:.2f} / sec"
+            )
+
+            st.caption(
+                f"Window: {weighted_average['window']} measurements"
+            )
+
+        with col3:
+
+            st.metric(
+                "Trend Forecast",
+                f"{trend_prediction['forecast_rate']:.2f} / sec"
+            )
+
+            st.caption(
+                f"Slope: {trend_prediction['trend_slope']:+.4f} / measurement"
+            )
+
+
+        # =========================
+        # FORECAST RELIABILITY
+        # =========================
+
+        st.divider()
+
+        st.markdown("### Forecast Reliability")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+
+            st.metric(
+                "Reliability",
+                f"{reliability['reliability_percent']:.2f}%"
+            )
+
+        with col2:
+
+            if reliability["status"] == "ok":
+
+                st.metric(
+                    "Coefficient of Variation",
+                    f"{reliability['coefficient_of_variation']:.2f}%"
+                )
+
+            else:
+
+                st.metric(
+                    "Coefficient of Variation",
+                    "N/A"
+                )
+
+
+        # =========================
+        # FORECAST ACCURACY
+        # =========================
+
+        st.divider()
+
+        st.markdown("### Forecast Accuracy")
+
+        if (
+            moving_accuracy["status"] == "ok"
+            and weighted_accuracy["status"] == "ok"
+            and trend_accuracy["status"] == "ok"
+        ):
+
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+
+                st.metric(
+                    "Moving Average Accuracy",
+                    f"{moving_accuracy['accuracy_percent']:.2f}%"
+                )
+
+                st.caption(
+                    f"Average error: "
+                    f"{moving_accuracy['average_error']:.4f} / sec"
+                )
+
+            with col2:
+
+                st.metric(
+                    "Weighted Average Accuracy",
+                    f"{weighted_accuracy['accuracy_percent']:.2f}%"
+                )
+
+                st.caption(
+                    f"Average error: "
+                    f"{weighted_accuracy['average_error']:.4f} / sec"
+                )
+
+            with col3:
+
+                st.metric(
+                    "Trend Accuracy",
+                    f"{trend_accuracy['accuracy_percent']:.2f}%"
+                )
+
+                st.caption(
+                    f"Average error: "
+                    f"{trend_accuracy['average_error']:.4f} / sec"
+                )
+
+        else:
+
+            st.info(
+                "Not enough historical data to evaluate forecast accuracy."
+            )
+
+
+        # =========================
+        # FORECAST COMPARISON
+        # =========================
+
+        st.divider()
+
+        st.markdown("### Forecast Comparison")
+
+        forecast_comparison = pd.DataFrame({
+            "Method": [
+                "Moving Average",
+                "Weighted Moving Average",
+                "Trend"
+            ],
+            "Forecast Rate": [
+                moving_average["forecast_rate"],
+                weighted_average["forecast_rate"],
+                trend_prediction["forecast_rate"]
+            ],
+            "Accuracy": [
+                (
+                    moving_accuracy["accuracy_percent"]
+                    if moving_accuracy["status"] == "ok"
+                    else None
+                ),
+                (
+                    weighted_accuracy["accuracy_percent"]
+                    if weighted_accuracy["status"] == "ok"
+                    else None
+                ),
+                (
+                    trend_accuracy["accuracy_percent"]
+                    if trend_accuracy["status"] == "ok"
+                    else None
+                )
+            ],
+            "Average Error": [
+                (
+                    moving_accuracy["average_error"]
+                    if moving_accuracy["status"] == "ok"
+                    else None
+                ),
+                (
+                    weighted_accuracy["average_error"]
+                    if weighted_accuracy["status"] == "ok"
+                    else None
+                ),
+                (
+                    trend_accuracy["average_error"]
+                    if trend_accuracy["status"] == "ok"
+                    else None
+                )
+            ]
+        })
+
+        st.dataframe(
+            forecast_comparison,
+            width="stretch",
+            hide_index=True
+        )
+
+
+        # =========================
+        # CURRENT VS FORECAST
+        # =========================
+
+        try:
+
+            latest_actual_rate = float(
+                measurements[-1]["actual_rate"]
+            )
+
+            st.divider()
+
+            st.markdown("### Current vs Forecast")
+
+            col1, col2, col3, col4 = st.columns(4)
+
+            with col1:
+
+                st.metric(
+                    "Latest Actual Rate",
+                    f"{latest_actual_rate:.2f} / sec"
+                )
+
+            with col2:
+
+                st.metric(
+                    "Moving Average",
+                    f"{moving_average['forecast_rate']:.2f} / sec",
+                    f"{moving_average['forecast_rate'] - latest_actual_rate:+.2f}"
+                )
+
+            with col3:
+
+                st.metric(
+                    "Weighted Average",
+                    f"{weighted_average['forecast_rate']:.2f} / sec",
+                    f"{weighted_average['forecast_rate'] - latest_actual_rate:+.2f}"
+                )
+
+            with col4:
+
+                st.metric(
+                    "Trend Forecast",
+                    f"{trend_prediction['forecast_rate']:.2f} / sec",
+                    f"{trend_prediction['forecast_rate'] - latest_actual_rate:+.2f}"
+                )
+
+        except (
+            KeyError,
+            TypeError,
+            ValueError
+        ):
+
+            st.info(
+                "Latest actual rate could not be evaluated."
+            )
+
