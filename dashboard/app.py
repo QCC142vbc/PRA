@@ -13,17 +13,8 @@ from core.production_rate import (
     calculate_efficiency,
     save_measurement,
     load_measurements,
-    calculate_trend
-)
-
-
-
-from core.production_rate import (
-    calculate_production_rate,
-    calculate_actual_production_rate,
-    calculate_efficiency,
-    save_measurement,
-    load_measurements
+    calculate_trend,
+    detect_bottleneck
 )
 
 
@@ -37,6 +28,7 @@ st.set_page_config(
 )
 
 st.title("Production Rate Analyzer")
+
 st.write(
     "Production performance and historical measurement analysis."
 )
@@ -107,18 +99,23 @@ if st.button("Calculate", type="primary"):
     )
 
     actual = calculate_actual_production_rate(
-    actual_output=actual_output,
-    measurement_time=measurement_time
-)
+        actual_output=actual_output,
+        measurement_time=measurement_time
+    )
 
     efficiency = calculate_efficiency(
-    theoretical_rate=theoretical["rate_per_second"],
-    actual_rate=actual["actual_rate_per_second"]
-)
+        theoretical_rate=theoretical["rate_per_second"],
+        actual_rate=actual["actual_rate_per_second"]
+    )
+
+    bottleneck = detect_bottleneck(
+        efficiency["efficiency_percent"]
+    )
 
     st.session_state["theoretical"] = theoretical
     st.session_state["actual"] = actual
     st.session_state["efficiency"] = efficiency
+    st.session_state["bottleneck"] = bottleneck
 
 
 # =========================
@@ -130,6 +127,7 @@ if "theoretical" in st.session_state:
     theoretical = st.session_state["theoretical"]
     actual = st.session_state["actual"]
     efficiency = st.session_state["efficiency"]
+    bottleneck = st.session_state["bottleneck"]
 
     st.divider()
 
@@ -155,6 +153,41 @@ if "theoretical" in st.session_state:
             f"{efficiency['efficiency_percent']:.2f}%"
         )
 
+
+    # =========================
+    # BOTTLENECK DETECTION
+    # =========================
+
+    st.divider()
+
+    st.subheader("Bottleneck Detection")
+
+    if bottleneck["status"] == "normal":
+
+        st.success(
+            f"Status: Normal "
+            f"({bottleneck['efficiency']:.2f}%)"
+        )
+
+    elif bottleneck["status"] == "warning":
+
+        st.warning(
+            f"Status: Warning "
+            f"({bottleneck['efficiency']:.2f}%)"
+        )
+
+    else:
+
+        st.error(
+            f"Status: Bottleneck "
+            f"({bottleneck['efficiency']:.2f}%)"
+        )
+
+
+    # =========================
+    # DETAILED RESULTS
+    # =========================
+
     st.divider()
 
     st.subheader("Detailed Results")
@@ -162,6 +195,7 @@ if "theoretical" in st.session_state:
     col1, col2 = st.columns(2)
 
     with col1:
+
         st.write("Theoretical Production")
 
         st.write(
@@ -185,6 +219,7 @@ if "theoretical" in st.session_state:
         )
 
     with col2:
+
         st.write("Actual Production")
 
         st.write(
@@ -207,11 +242,12 @@ if "theoretical" in st.session_state:
             f"{actual['actual_output']:.2f}"
         )
 
-    st.divider()
 
     # =========================
     # SAVE
     # =========================
+
+    st.divider()
 
     st.subheader("Measurement")
 
@@ -234,7 +270,9 @@ if "theoretical" in st.session_state:
             ]
         )
 
-        st.success("Measurement saved successfully.")
+        st.success(
+            "Measurement saved successfully."
+        )
 
         st.json(saved_measurement)
 
@@ -248,9 +286,12 @@ st.divider()
 st.subheader("Historical Measurements")
 
 measurements = load_measurements()
+
 if not measurements:
 
-    st.info("No historical measurements available.")
+    st.info(
+        "No historical measurements available."
+    )
 
 else:
 
@@ -271,34 +312,39 @@ else:
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
+
         st.metric(
             "Measurements",
             len(measurements)
         )
 
     with col2:
+
         st.metric(
             "Average Efficiency",
             f"{sum(efficiencies) / len(efficiencies):.2f}%"
         )
 
     with col3:
+
         st.metric(
             "Best Efficiency",
             f"{max(efficiencies):.2f}%"
         )
 
     with col4:
+
         st.metric(
             "Worst Efficiency",
             f"{min(efficiencies):.2f}%"
         )
 
-    st.divider()
 
     # =========================
     # HISTORY TABLE
     # =========================
+
+    st.divider()
 
     display_data = []
 
@@ -335,6 +381,7 @@ else:
         hide_index=True
     )
 
+
 # =========================
 # TREND ANALYSIS
 # =========================
@@ -344,41 +391,53 @@ st.divider()
 st.subheader("Production Trend")
 
 trend = calculate_trend(measurements)
+
 if trend["trend"] == "no_data":
 
-    st.info("No data available for trend analysis.")
+    st.info(
+        "No data available for trend analysis."
+    )
 
 elif trend["trend"] == "insufficient_data":
 
-    st.info("At least two measurements are required.")
+    st.info(
+        "At least two measurements are required."
+    )
 
 else:
 
     col1, col2, col3 = st.columns(3)
 
     with col1:
+
         st.metric(
             "Trend",
-            trend["trend"].replace("_", " ").title()
+            trend["trend"].replace(
+                "_",
+                " "
+            ).title()
         )
 
     with col2:
+
         st.metric(
             "Efficiency Change",
             f"{trend['change_percent']:+.2f}%"
         )
 
     with col3:
+
         st.metric(
             "Average Actual Rate",
             f"{trend['average_actual_rate']:.2f} / sec"
         )
 
-    st.divider()
 
     # =========================
     # EFFICIENCY CHART
     # =========================
+
+    st.divider()
 
     chart_data = pd.DataFrame({
         "Timestamp": [
@@ -395,7 +454,9 @@ else:
         chart_data["Timestamp"]
     )
 
-    chart_data = chart_data.set_index("Timestamp")
+    chart_data = chart_data.set_index(
+        "Timestamp"
+    )
 
     st.line_chart(
         chart_data["Efficiency"]

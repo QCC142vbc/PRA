@@ -255,3 +255,20 @@ def calculate_trend(measurements):
             sum(actual_rates) / len(actual_rates)
         )
     }
+
+# =========================
+# BOTTLENECK DETECTION
+# =========================
+
+def detect_bottleneck(efficiency):
+    if efficiency >= 90:
+        status = "normal"
+    elif efficiency >= 75:
+        status = "warning"
+    else:
+        status = "bottleneck"
+
+    return {
+        "status": status,
+        "efficiency": efficiency
+    }
